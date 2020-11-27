@@ -1,4 +1,5 @@
 /*FreeRtos includes*/
+#include <stdio.h>
 #include "FreeRTOS.h"
 #include "task.h"
 
@@ -9,8 +10,15 @@
 #define MAX_TRANSPORT_MTU UXR_CONFIG_UDP_TRANSPORT_MTU
 #define BUFFER_SIZE    MAX_TRANSPORT_MTU * STREAM_HISTORY
 
+
+
 uxrSession session;
 uxrUDPTransport transport;
+typedef struct uxrUDPPlatform
+{
+    int fd;
+} uxrUDPPlatform;
+
 uxrUDPPlatform udp_platform;
 
 typedef struct Point32 {
@@ -37,14 +45,21 @@ void on_topic(uxrSession* session, uxrObjectId object_id, uint16_t request_id, u
 
 void appMain(){
 
+#if 0
     // Micro-XRCE-DDS init transport and session
     if(!uxr_init_udp_transport(&transport, &udp_platform, UXR_IPv4, UXRCEDDS_AGENT_IP, UXRCEDDS_AGENT_PORT)){
         printf("Error: Init serial transport fail\n");
         vTaskSuspend( NULL );
     }
-
+#else
+    // Micro-XRCE-DDS init transport and session
+        if(!uxr_init_can_transport(&transport, &udp_platform, UXR_IPv4, UXRCEDDS_AGENT_IP, UXRCEDDS_AGENT_PORT)){
+            printf("Error: Init CAN transport fail\n");
+            vTaskSuspend( NULL );
+        }
+#endif
     uxr_init_session(&session, &transport.comm, 0xBA5EBA11);
-    uxr_set_topic_callback(&session, on_topic, NULL);
+    uxr_set_topic_callback(&session, (void *)on_topic, NULL);
 
     if(!uxr_create_session(&session))
     {

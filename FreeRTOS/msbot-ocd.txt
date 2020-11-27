@@ -1,0 +1,1 @@
+openocd -f interface/ftdi/olimex-arm-usb-ocd-h.cfg -f target/stm32f4x.cfg -c init -c "reset halt" -c "flash write_image erase build/sample_project.bin 0x08000000" -c "reset" -c "exit"

@@ -40,7 +40,10 @@
 //#define		USART3_PRINTF
 #define 	RTOS_MODE
 //#define 	CAN1_LOOPBACK_MODE
+//#define     CAN1_TX_ONLY
+//#define     CAN1_RX_ONLY
 #define 	CAN1_ENABLE
+
 #define		DISABLE_CAN1_TX_PENDING_WAIT
 
 void ISR_Error_Handler(void);
@@ -50,10 +53,10 @@ void CAN1_TX_Config(void);
 
 void ms_delay(uint32_t delay);
 void CAN1_RX_polling(void);
+//void CAN1_TX(void);
 //void cb_read_CAN_frame(circularByteBuffer_t *cb);
 #endif
 /* USER CODE END PTD */
-
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
@@ -65,6 +68,9 @@ void CAN1_RX_polling(void);
 /* USER CODE BEGIN PM */
 
 bool can1_ready = RESET;
+int count = 0;
+uint8_t can1_buf[8] = {0xA1,0xA2,0xA3,0xA4,0xA5,0xA6,0xA7,0xA8};
+
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -140,35 +146,38 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-  printf("SystemClock_Config() passed\n");
+//  printf("SystemClock_Config() passed\n");
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_DMA_Init();
-  MX_USART3_UART_Init();  // for printf() to external ttyUSB0 terminal
+  MX_USART3_UART_Init();
   MX_LWIP_Init();
   MX_USART1_UART_Init();
   MX_USART6_UART_Init();
 
-  RetargetInit(&huart3);
+
   MX_CAN1_Init();
   /* USER CODE BEGIN 2 */
-
+  RetargetInit(&huart3);  // Assign uart3 for printf() to external ttyUSB* terminal
 #ifdef CAN1_ENABLE
   printf("MX_CAN1_Init() passed\n");
 
-
   CAN1_TX_Config();
   printf("CAN1_TX_Config() passed\n");
-
 
   CAN1_RX_Config();
   printf("CAN1_RX_Config() passed\n");
 
 #endif
 
+#if !defined (CAN1_TX_ONLY) && !defined (CAN1_RX_ONLY)
+
+
   /* USER CODE END 2 */
+
+
   /* Init scheduler */
   osKernelInitialize();
 
@@ -203,17 +212,19 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+#endif
+
   while (1)
   {
 
-#if !defined (RTOS_MODE) && defined (CAN1_LOOPBACK_MODE)
-	  CAN1_TX();
-	  printf("loop %d\n", ++count);  //test the SWV, but no luck
+#if defined (CAN1_LOOPBACK_MODE)
+	  CAN1_TX(can1_buf, 8);
+	  printf("loop %d\n\r", ++count);  //test the SWV, but no luck
 
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  HAL_Delay(100);
+	  HAL_Delay(1000);
 
 	  //CAN1_RX_polling();
 
@@ -283,16 +294,22 @@ static void MX_CAN1_Init(void)
 
   /* USER CODE BEGIN CAN1_Init 1 */
 
+	/* PCLK2 = 168MHz / 4 = 42MHz
+	* Prescaler = 12;
+	* TimeSeg1 = CAN_BS1_11TQ;
+	* TimeSeg2 = CAN_BS2_2TQ;
+	* to create 250Kb/s CAN bitrate
+	*/
   /* USER CODE END CAN1_Init 1 */
   hcan1.Instance = CAN1;
-  hcan1.Init.Prescaler = 21;
+  hcan1.Init.Prescaler = 12;
 #if defined (CAN1_LOOPBACK_MODE)
   hcan1.Init.Mode = CAN_MODE_LOOPBACK;
 #else
   hcan1.Init.Mode = CAN_MODE_NORMAL;
 #endif
   hcan1.Init.SyncJumpWidth = CAN_SJW_1TQ;
-  hcan1.Init.TimeSeg1 = CAN_BS1_13TQ;
+  hcan1.Init.TimeSeg1 = CAN_BS1_11TQ;
   hcan1.Init.TimeSeg2 = CAN_BS2_2TQ;
   hcan1.Init.TimeTriggeredMode = DISABLE;
   hcan1.Init.AutoBusOff = DISABLE;
@@ -482,15 +499,15 @@ static void MX_GPIO_Init(void)
 
 void CAN1_TX_Config(void)
 {
-	txHeader.DLC=4;  			// give message size of 4 byte FOR NOW
+	txHeader.DLC=8;  			// give message size of 8 byte FOR NOW
 	txHeader.IDE=CAN_ID_STD; 	//set identifier to standard
 	txHeader.RTR=CAN_RTR_DATA; 	//set data type to remote transmission request?
-	txHeader.StdId=0x321; 		//define a standard identifier, used for message identification by filters (switch this for the other microcontroller)
+	txHeader.StdId=0x123; 		//define a standard identifier, used for message identification by filters (switch this for the other microcontroller)
 
 
 	txHeader.ExtId = 0x00;
 	txHeader.TransmitGlobalTime = DISABLE;
-	printf("CAN1_TX_Config() Passed \n");
+	printf("\n\rCAN1_TX_Config() Passed \n\r");
 
 }
 
@@ -502,16 +519,16 @@ void CAN1_RX_polling(void)
 //	printf("HAL_CAN_GetRxFifoFillLevel() Passed \n");
 
 	if (HAL_CAN_GetRxMessage(&hcan1,CAN_RX_FIFO0, &rxHeader, rxData) != HAL_OK) {
-		printf("HAL_CAN_GetRxMessage() Failed \n");
+		printf("\n\rHAL_CAN_GetRxMessage() Failed \n\r");
 			Error_Handler();
 
 	}
 
-	 printf("HAL_CAN_GetRxMessage() Passed %s\n", rxData);
+	 printf("\n\rHAL_CAN_GetRxMessage() Passed %s\n\r", rxData);
 
 	if ((rxHeader.IDE == CAN_ID_STD) && (rxHeader.StdId == 0x321) && (rxHeader.DLC == 4))
 	{
-		printf("RdDataLength %d , RxData 0x%x\n", (int)(rxHeader.DLC>> 16), (unsigned int)rxData[0]);
+		printf("\n\rRdDataLength %d , RxData 0x%x\n\r", (int)(rxHeader.DLC>> 16), (unsigned int)rxData[0]);
 	}
 
 
@@ -525,25 +542,25 @@ void CAN1_RX_Config(void)
 	sFilterConfig.FilterBank = 0;
 	sFilterConfig.FilterFIFOAssignment=CAN_FILTER_FIFO0; //set fifo assignment
 	sFilterConfig.FilterIdHigh=0x0;      //245<<5; //the ID that the filter looks for (switch this for the other microcontroller)
-	sFilterConfig.FilterIdLow=0;
-	sFilterConfig.FilterMaskIdHigh=0;
-	sFilterConfig.FilterMaskIdLow=0;
+	sFilterConfig.FilterIdLow=0x0;
+	sFilterConfig.FilterMaskIdHigh=0x0;
+	sFilterConfig.FilterMaskIdLow=0x0;
 	sFilterConfig.FilterScale=CAN_FILTERSCALE_32BIT; //set filter scale
 	sFilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;
 	sFilterConfig.FilterActivation=ENABLE;
 
 	if (HAL_CAN_ConfigFilter(&hcan1, &sFilterConfig) != HAL_OK) //configure CAN filter
 	{
-		printf("HAL_CAN_ConfigFilter() failed \n");
+		printf("\n\rHAL_CAN_ConfigFilter() failed \n\r");
 		 Error_Handler();
 	}
-	printf("HAL_CAN_ConfigFilter() passed \n");
+	printf("\n\rHAL_CAN_ConfigFilter() passed \n\r");
 
 	HAL_CAN_Start(&hcan1); //start CAN
-	printf("HAL_CAN_Start() passed \n");
+	printf("HAL_CAN_Start() passed \n\r");
 
 	HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING); //enable interrupts
-	printf("HAL_CAN_ActivateNotification() passed \n");
+	printf("\n\rHAL_CAN_ActivateNotification() passed \n\r");
 }
 
 
@@ -555,16 +572,24 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 	int i = 0;
 
 	HAL_CAN_ActivateNotification(&hcan1,CAN_IT_RX_FIFO0_MSG_PENDING);
-	printf("HAL_CAN_RxFifo0MsgPendingCallback() entered \n");
+	printf("\n\rHAL_CAN_RxFifo0MsgPendingCallback() entered \n\r");
 	if (HAL_CAN_GetRxMessage(&hcan1, CAN_RX_FIFO0, &rxHeader,rcvd_msg) != HAL_OK)
 	{
-		printf("HAL_CAN_RxFifo Callback - HAL_CAN_GetRxMessage() Failed\n");
+		printf("\n\rHAL_CAN_RxFifo Callback - HAL_CAN_GetRxMessage() Failed\n\r");
 		ISR_Error_Handler();
 	}
 
-	if ((rxHeader.IDE == CAN_ID_STD) && (rxHeader.StdId == 0x321))
+	if ((rxHeader.IDE == CAN_ID_STD)) // && (rxHeader.StdId == 0x321))
 	{
-		printf("RdDataLength %d , RxData 0x%x\n", (int)(rxHeader.DLC), (unsigned int)rcvd_msg[0]);
+		//printf("\n\rID = 0x%x RdDataLength %d , RxData 0x%x\n\r", (int)(rxHeader.DLC), (unsigned int)rcvd_msg[0]);
+		printf("\n\r ID = 0x%x RdDataLength %d \n\r", (int)rxHeader.StdId, (int)(rxHeader.DLC));
+		/* print received data */
+		for (i=0; i< rxHeader.DLC; i++)
+		{
+			printf("Data[%d]=0x%x ", i, (int)rcvd_msg[i]);
+		}
+
+		printf("\n\r");
 	}
 
 	/*
@@ -574,18 +599,19 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 	 * Note: the term "element" depicts data type of uint32_t
 	 */
 
+	EnqueueFrame(rxHeader.StdId, rxHeader.DLC, rcvd_msg);
+
+#if 0
 	/* convert rxHeader.StdId to bytes */
-
 	circularByteBuffer_Int2Bytes(rxHeader.StdId, arr_val);
-
+	printf("\n\rEnqueue ID %x \n\r", (int)(rxHeader.DLC));
 	/* Store rxHeader.StdId, i.e, arr_val in the circular buffer */
 	circularByteBuffer_element_Enqueue(&cb_han, arr_val);
 
 
 	/* convert rxHeader.DCL to bytes */
 	circularByteBuffer_Int2Bytes(rxHeader.DLC, arr_val);
-	printf("Enqueue RdDataLength %x \n", (int)(rxHeader.DLC));
-
+	printf("\n\rEnqueue RdDataLength %x \n\r", (int)(rxHeader.DLC));
 	/* Store rxHeader.DCL in arr_val into the circular buffer */
 	circularByteBuffer_element_Enqueue(&cb_han, arr_val);
 
@@ -593,11 +619,11 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 	 *  It is for not fixed at 4 bytes for sending, hence receiving 4 bytes
 	 */
 	/* Store in the circular buffer */
-	for (i=0; i< 4; i++) {
+	for (i=0; i< rxHeader.DLC; i++) {
 		circularByteBuffer_Enqueue(&cb_han, (uint8_t)rcvd_msg[i]);
 	}
 
-
+#endif
 	HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
 
 }
@@ -612,10 +638,10 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-	printf("HAL_GPIO_EXTI_Callback() entered \n");
+	printf("HAL_GPIO_EXTI_Callback() entered \n\r");
 	if(GPIO_Pin == WK_Button_Pin)   //WK_Button_GPIO_Port WK_Button_Pin
 	{
-		printf("WK_Button_Pin pressed entered \n");
+		printf("\n\rWK_Button_Pin pressed entered \n\r");
 
 		//HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
 		//CAN1_TX();
@@ -637,9 +663,10 @@ void initTaskFunction(void *argument)
 {
   /* USER CODE BEGIN 5 */
 	int count = 0;
+	uint32_t id, length = 0;
 #if defined (CAN1_ENABLE)
 
-	printf("CAN1-bus %d - 1=Ready, 0=Off-line \r\n", can1_ready);
+	printf("\n\rCAN1-bus %d - 1=Ready, 0=Off-line \r\n", can1_ready);
 
 	// Launch app thread when IP configured
 
@@ -654,7 +681,7 @@ void initTaskFunction(void *argument)
 	xHandle = xTaskGetHandle("microxrceddsapp");
 
 	while (1) {
-		printf(" Count %d", count++);
+		printf("\n\r Count %d", count++);
 
 		if (eTaskGetState(xHandle) != eSuspended){
 			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
@@ -677,8 +704,8 @@ void initTaskFunction(void *argument)
 		  //HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
 		 int32_t len;
 		 uint8_t arr[12];
-		  CAN1_TX();
-		  printf("loop %d\n", ++count);  //test the SWV, but no luck
+		 CAN1_TX(can1_buf, 8);
+		  printf("\n\rloop %d\n\r", ++count);  //test the SWV, but no luck
 
 		  HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
 	    /* USER CODE END WHILE */
@@ -692,6 +719,9 @@ void initTaskFunction(void *argument)
 		  //Read back from the circular buffer
 		  len = cb_read_CAN_frame(arr);
 #endif
+		  //Read back from the circular buffer
+		  // len = cb_read_CAN_frame(arr);
+		   len = cb_read_CAN_frame(arr, &id, &length);
 	}
 
 
@@ -699,7 +729,7 @@ void initTaskFunction(void *argument)
 	HAL_GPIO_WritePin(GPIOG, GPIO_PIN_6, GPIO_PIN_SET);
 	uint8_t availableNetwork = 0;
 
-	printf("Ethernet Initialization\r\n");
+	printf("\n\rEthernet Initialization\r\n");
 
 	//Waiting for an IP
 	printf("Waiting for IP\r\n");
@@ -712,10 +742,10 @@ void initTaskFunction(void *argument)
 
 	availableNetwork = (gnetif.ip_addr.addr != 0) ? 1 : 0;
 	if (availableNetwork != 0){
-		printf("IP: %s\r\n",ip4addr_ntoa(&gnetif.ip_addr));
+		printf("\n\rIP: %s\r\n",ip4addr_ntoa(&gnetif.ip_addr));
 	}
 	else{
-		printf("Impossible to retrieve an IP\n");
+		printf("\n\rImpossible to retrieve an IP\n\r");
 	}
 
   // Launch app thread when IP configured
@@ -774,7 +804,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
   /* USER CODE END Callback 1 */
 }
-
 
 /**
   * @brief  This function is executed in case of error occurrence.

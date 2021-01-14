@@ -5,7 +5,7 @@
  extern "C" {
 #endif
 
-#define  MAX_CB_SIZE			1024
+#define  MAX_CB_SIZE			4096
 #define  CB_SIZE				MAX_CB_SIZE
 
 typedef struct circularByteBuffer_t

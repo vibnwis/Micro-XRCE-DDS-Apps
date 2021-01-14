@@ -10,7 +10,7 @@
 // Based on harshkn's circular buffer: https://gist.github.com/harshkn/909546
 // This Gist (Pointer): https://gist.github.com/mofosyne/d7a4a8d6a567133561c18aaddfd82e6f
 // This Gist (Index): https://gist.github.com/mofosyne/82020d5c0e1e11af0eb9b05c73734956
-
+#include <stdio.h>
 #include <stdint.h> // uint8_t
 #include <stddef.h> // size_t
 #include <stdbool.h> // bool
@@ -58,8 +58,10 @@ bool circularByteBuffer_Reset(circularByteBuffer_t *cb)
    wait_cb_unlock();  	// check and wait cb_lock if being locked
    cb_lock = SET;     	//It is my turn. Set the lock
 
+  //printf("\n\r enqueue b=0x%x \n\r", b);
   // Push value
   cb->buffer[cb->tail] = b;
+//  printf("\n\r read back enqueued tail 0x%x \n\r", (int)(cb->buffer[cb->tail]) );
 
   // Increment tail
   cb->tail = (cb->tail + 1) % cb->capacity;

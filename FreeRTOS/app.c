@@ -40,30 +40,24 @@ void on_topic(uxrSession* session, uxrObjectId object_id, uint16_t request_id, u
     Point32 topic;
     Point32_deserialize_topic(ub, &topic);
 
-    printf("Received %d topic: %f %f %f\n", ++count, (double) topic.x, (double) topic.y, (double) topic.z);
+    printf("\n\rReceived %d topic: %f %f %f\n\r", ++count, (double) topic.x, (double) topic.y, (double) topic.z);
 }
 
 void appMain(){
 
-#if 0
+
     // Micro-XRCE-DDS init transport and session
-    if(!uxr_init_udp_transport(&transport, &udp_platform, UXR_IPv4, UXRCEDDS_AGENT_IP, UXRCEDDS_AGENT_PORT)){
-        printf("Error: Init serial transport fail\n");
-        vTaskSuspend( NULL );
+    if(!uxr_init_can_transport(&transport, &udp_platform, UXR_IPv4, UXRCEDDS_AGENT_IP, UXRCEDDS_AGENT_PORT)){
+         printf("\n\rError: Init CAN transport fail\n");
+         vTaskSuspend( NULL );
     }
-#else
-    // Micro-XRCE-DDS init transport and session
-        if(!uxr_init_can_transport(&transport, &udp_platform, UXR_IPv4, UXRCEDDS_AGENT_IP, UXRCEDDS_AGENT_PORT)){
-            printf("Error: Init CAN transport fail\n");
-            vTaskSuspend( NULL );
-        }
-#endif
+
     uxr_init_session(&session, &transport.comm, 0xBA5EBA11);
     uxr_set_topic_callback(&session, (void *)on_topic, NULL);
 
     if(!uxr_create_session(&session))
     {
-        printf("Error: Create session fail\n");
+        printf("\n\rappMain: Error-Create session fail\n\r");
         vTaskSuspend( NULL );
     }
 
@@ -85,7 +79,8 @@ void appMain(){
     const char* participant_xml = "<dds>"
                                         "<participant>"
                                             "<rtps>"
-                                                "<name>olimex_node</name>"
+                                            //    "<name>olimex_node</name>"
+    										"<name>CAN2NODE</name>"
                                             "</rtps>"
                                         "</participant>"
                                     "</dds>";
